@@ -1,0 +1,276 @@
+NASA HUNCH / DSLM — Project Context
+Last updated: 2026-04-26
+================================================================================
+
+PROJECT OVERVIEW
+----------------
+Full-stack inventory management system for NASA's Deep Space Logistics Module
+(DSLM). Built under the NASA HUNCH program. Tracks supplies from external
+vendor → KSC Ground warehouse → ISS Crew. Three role-based UIs share a common
+Fastify backend and RFID scanning subsystem.
+
+REPO STRUCTURE
+--------------
+  nasa-hunch/                     React 19 + TypeScript + Vite frontend (port 5173)
+  dlsm-temp/dlsm-inv-sys-client-main/services/edge-server/
+                                  Fastify Node.js API server (port 8080)
+  .github/workflows/              CI/CD pipeline (GitHub Actions)
+
+QUICK START
+-----------
+  Terminal 1 — Backend (in-memory, no DB needed):
+    cd dlsm-temp/dlsm-inv-sys-client-main/services/edge-server
+    NO_DB=1 node src/server.mjs
+
+  Terminal 2 — Frontend:
+    cd nasa-hunch
+    npm install
+    npm run dev
+
+  Open http://localhost:5173
+  Test badges: crew=0003070837  ground=0003104127  vendor=0003200001
+
+ROLES & VIEWS
+-------------
+  /crew      CrewView.tsx      — ISS astronauts: take out / put back / dispose /
+                                  low-resource request / 3D module view.
+                                  Blue accent. Sidebar 220px.
+
+  /ground    GroundView.tsx    — KSC warehouse:
+                                  Workflow: Dashboard, Receive, Tag, Pack, 3D Module, Move
+                                  Management: Orders, Space Requests, Reserves
+                                  (Stow tab removed — 3D Module replaces it)
+                                  Green accent. Sidebar 220px.
+
+  /vendors   VendorView.tsx    — External supplier (Sunrise Supply Co.
+                                  NASA-VND-00847): my orders, invoices, my
+                                  shipments, past orders, packing rules.
+                                  Amber/orange accent. Sidebar 220px.
+
+SUPPLY CHAIN FLOW
+-----------------
+  1. Ground places Purchase Order → vendor sees it on My Orders (polled 5s)
+  2. Vendor picks items, tags each with RFID, ships → invoice auto-generated
+  3. Ground receives inbound shipment (ReceiveScreen), counts line items
+  4. Ground tags remaining items (TagScreen)
+  5. Ground packs into CTBs (PackScreen)
+  6. Ground stows in 3D module / module grid (StowScreen / ModuleView3D)
+  7. Items launch to ISS
+  8. Crew takes out / returns / disposes via RFID scan
+  9. Crew sends Low-Resources request → Ground approves / fulfils
+
+CTB SPECIFICATIONS (NASA standard)
+----------------------------------
+  0.5 CTB:  42.5 × 24.8 × 23.5 cm  (7.3 kg max,  0.025 m³)
+  1.0 CTB:  50.2 × 42.5 × 24.8 cm  (15.4 kg max, 0.053 m³)
+  2.0 CTB:  50.2 × 42.5 × 50.2 cm  (31.0 kg max, 0.107 m³)
+  3.0 CTB:  74.9 × 42.5 × 50.2 cm  (46.4 kg max, 0.160 m³)
+  4.0 CTB:  89.7 × 50.8 × 53.3 cm  (70.5 kg max, 0.243 m³)
+  6.0 CTB:  89.7 × 81.9 × 53.3 cm  (113.7 kg max, 0.392 m³)
+  CTBs can nest inside each other. No bracing between CTBs in stacks.
+
+RFID SYSTEM
+-----------
+  Hardware:   UHF RFID reader connected via USB serial (keyboard-wedge mode).
+              The reader emulates keyboard input; the useKeyboardWedgeScan hook
+              debounces 120ms and auto-submits.
+  Simulation: Type badge/tag UID in any scan input field and press Enter.
+  Tag spec:   EPC Gen 2, 860–960 MHz. Avoid placement within 2 cm of metal.
+  Baud/port:  Configure in vite.config.ts proxy or via serialport at the server.
+              On Linux (Jetson/Pi), typical path: /dev/ttyUSB0 at 9600 baud.
+  Badge UIDs: crew=0003070837  ground=0003104127  vendor=0003200001
+
+X-400 / X-500 MESSAGES
+-----------------------
+  Ground Dashboard polls /api/messages every 4 s.
+  X-400: standard operations messages (disposal, stow events).
+  X-500: high-priority or ISS-to-Ground urgent traffic.
+  Source: crew dispose action auto-sends an X-400 message.
+
+3D MODULE VIEW
+--------------
+  File: nasa-hunch/src/screens/ModuleView3D.tsx
+  Library: Three.js via @react-three/fiber + @react-three/drei
+
+  Geometry: Real DSLM — 3.7 m diameter × 4 m cylinder (module runs along X-axis)
+    S-1  top center           — rectangular prism 0.85 m × 1.0 m × 4 m
+    S-2  lower-right          — same
+    S-3  lower-left           — same
+    C1   upper-left column    — curved-back, volume ~2.56 m³ (non-interactive)
+    C2   upper-right column   — curved-back, volume ~2.56 m³ (non-interactive)
+    S-4  under floor          — NASA standard lockers (non-interactive)
+    Translation pathway clear: 1.143 m × 0.813 m through center
+
+  Slot grid per stack: 4 depths (D1–D4, 1 m each) × 12 levels (4 cols × 3 rows)
+                       = 144 slots per stack, 432 total
+  Features:
+    - Click empty slot → StowPanel popup → enter item ID → POST /api/stow
+    - Double-click occupied slot → container tree (GET /api/containers/:id/tree)
+    - Slot search/filter, fresh-pulse animation on recent changes
+    - ReceiveDock (green, x=-8.5) and TrashZone (red, x=+8.5) platforms
+    - Activity feed (color-coded log events from /api/logs)
+    - Theme-aware colours (dark/light NORD palettes)
+    - Real-time polling: locations 4 s, logs 5 s, inbound count 8 s
+    - mode prop ("crew" | "ground") controls available actions
+    - AutoRotate when idle
+
+THEME SYSTEM
+------------
+  File: nasa-hunch/src/lib/theme.tsx + nasa-hunch/src/index.css
+  Tokens: --t-bg, --t-surface, --t-surface2, --t-surface3, --t-text,
+          --t-muted, --t-subtle, --t-blue*, --t-green, --t-accent (amber),
+          --t-red, --t-purple, --t-border-rgb, --t-sidebar
+  Every colour has a companion -rgb variant for rgba() usage.
+  Toggle: ThemeProvider context, persisted in localStorage, sets data-theme on <html>.
+  Glass effect: .glass class (backdrop-filter blur).
+
+API BASE
+--------
+  Frontend: src/lib/apiBase.ts — defaults to /api (Vite proxy → 8080).
+  Override: Login screen "Connection Settings" gear → save custom URL for
+            Tailscale or remote deployments.
+  All routes prefixed /api on the server; frontend strips this via proxy.
+
+KEY FILE PATHS
+--------------
+  nasa-hunch/src/
+    main.tsx                  App entry (ErrorBoundary > ThemeProvider > ParamsProvider > App)
+    App.tsx                   Routes: /crew /ground /vendors / /trifold /demo
+    views/CrewView.tsx        Crew sidebar layout (blue, 5 ops)
+    views/GroundView.tsx      Ground sidebar layout (green, 9 ops + live feeds)
+    views/VendorView.tsx      Vendor sidebar layout (amber, 5 pages incl. Packing Rules)
+    screens/Login.tsx         Badge auth screen (keyboard-wedge + fallback buttons)
+    screens/ReceiveScreen.tsx Inbound shipment receiving
+    screens/TagScreen.tsx     RFID tag pairing
+    screens/PackScreen.tsx    CTB packing (outside / inside scan)
+    screens/StowScreen.tsx    Warehouse slot assignment (legacy — replaced by 3D Module in GroundView)
+    screens/MoveScreen.tsx    Item relocation with audit trail
+    screens/ModuleView3D.tsx  Three.js interactive DSLM module
+    screens/space/RemoveScreen.tsx  Crew take-out
+    screens/space/AddScreen.tsx     Crew put-back
+    screens/space/TrashScreen.tsx   Crew dispose
+    screens/space/CrewRequestScreen.tsx Crew low-resources request
+    lib/theme.tsx             ThemeProvider + useTheme
+    lib/api.ts                Typed DTOs + HTTP helpers
+    lib/apiBase.ts            Base URL helper (localStorage override for Tailscale)
+    lib/ParamsContext.tsx      Mission config provider (/api/config)
+    lib/useKeyboardWedgeScan.ts RFID wedge hook (120ms debounce)
+
+  dlsm-temp/dlsm-inv-sys-client-main/services/edge-server/
+    src/server.mjs            Fastify app — all routes, in-memory store, seeding
+    openapi.yaml              OpenAPI 3.1 spec (all routes + schemas)
+
+  nasa-hunch/
+    tests/login.spec.ts         E2E: login flow for all three roles
+    tests/ground-orders.spec.ts E2E: place PO, navigate screens, aria-current
+    tests/vendor-ship.spec.ts   E2E: vendor pick/tag/ship + packing rules
+    tests/crew-take.spec.ts     E2E: crew nav, accessibility landmarks, skip link
+    playwright.config.ts        Playwright config (Chromium, baseURL 5173)
+
+PLAYWRIGHT TESTS
+----------------
+  Run (requires both servers running first):
+    cd nasa-hunch
+    npm test               # headless
+    npm run test:headed    # with browser window
+    npm run test:ui        # interactive Playwright UI
+
+  Test files:
+    tests/login.spec.ts         — Badge login, unknown badge error, theme toggle
+    tests/ground-orders.spec.ts — Ground nav, place PO, aria-current, logout
+    tests/vendor-ship.spec.ts   — Vendor sidebar, packing rules, ship flow
+    tests/crew-take.spec.ts     — Crew nav, 3D module lazy load, skip link focus
+
+OPENAPI / SWAGGER
+-----------------
+  Spec: dlsm-temp/.../edge-server/openapi.yaml (OpenAPI 3.1)
+  View locally with any OpenAPI viewer, e.g.:
+    npx @redocly/cli preview-docs openapi.yaml
+  Or paste into editor.swagger.io
+
+  Route groups: Health, Auth, Inventory, RFID, Crew, Ground, Vendor,
+                Shipments, Messages
+
+ACCESSIBILITY
+-------------
+  All three views now have:
+  - <nav role="navigation" aria-label="[Role] operations"> sidebar
+  - <main id="[role]-main" tabIndex={-1} aria-label="..."> content area
+  - aria-current="page" on active nav buttons
+  - aria-label on each nav button (screen-reader friendly)
+  - Skip-to-main-content link (.skip-link, appears on :focus)
+  - role-coloured focus ring on nav items (focus-visible outline)
+
+UI LAYOUT PATTERN (all three views match)
+-----------------------------------------
+  header.glass         — top bar: logo + role badge + sync pill + theme toggle + logout
+  section.{role}-container (grid 220px 1fr)
+    nav.{role}-sidebar — Operations section label + nav buttons + summary/footer
+    main#{role}-main   — optional action-alert banner + scrollable page content
+
+  Accent colours:
+    Crew:   var(--t-blue)    header gradient + active sidebar border/bg
+    Ground: var(--t-green)   header gradient + active sidebar border/bg
+    Vendor: var(--t-accent)  header gradient + active sidebar border/bg
+
+VENDOR PACKING RULES PAGE
+--------------------------
+  Reachable via Vendor sidebar → "Packing Rules".
+  Content: CTB dimensions (48×40×33 cm, 15 kg max), RFID tagging spec
+           (EPC Gen 2, placement rules), prohibited items list, labeling &
+           documentation requirements, pre-shipment checklist.
+
+BACKEND IN-MEMORY SEED DATA (NO_DB=1)
+--------------------------------------
+  Badges:  0003070837 → crew, 0003104127 → ground, 0003200001 → vendor
+  Grid:    3 shelves × 4 depths × 12 levels = 144 stow slots
+  Items:   ~30 seeded items (medical, food, tools, hygiene, maintenance)
+  No persistence — all state resets on server restart. Use PostgreSQL for
+  persistence (set DATABASE_URL in .env and remove NO_DB=1).
+
+ENVIRONMENT VARIABLES
+---------------------
+  NO_DB=1          Use in-memory store (no PostgreSQL required)
+  DATABASE_URL     PostgreSQL connection string (optional)
+  CORS_ORIGINS     Comma-separated allowed origins (default: "*")
+  PORT             Server port (default: 8080)
+
+KNOWN LIMITATIONS
+-----------------
+  - In-memory backend does not persist between restarts without PostgreSQL.
+  - No real RFID hardware integration tested yet (keyboard-wedge simulation only).
+  - No rate limiting on mutation routes.
+  - No user permissions beyond actor tracking.
+
+NEXT STEPS (prioritised)
+-------------------------
+  1. [done] Playwright E2E tests (login, ground-orders, vendor-ship, crew-take)
+  2. [done] OpenAPI 3.1 spec for all routes
+  3. [done] Packing Rules page in Vendor sidebar
+  4. [done] Accessibility pass (ARIA landmarks, aria-current, skip link)
+  5. [done] 3D Module real DSLM geometry (S-1/S-2/S-3/C1/C2/S-4, translation pathway)
+  6. [done] Click-to-stow and double-click container tree in 3D Module
+  7. [done] Stow tab removed from GroundView — 3D Module replaces it
+  8. Real RFID hardware test — connect USB reader to Jetson/Pi, verify
+     /dev/ttyUSB0 path, test tag reads against live server.
+  9. Rate limiting — add fastify-rate-limit to POST/PATCH mutation routes.
+ 10. Swagger UI endpoint — serve /docs with @fastify/swagger + @fastify/swagger-ui.
+ 11. PostgreSQL migration — swap NO_DB=1 for a real DB, run db/ migrations.
+ 12. Tailscale deployment — follow LINUX_SETUP_AND_CONNECT.md for Jetson/Pi.
+     NOTE: Tailscale on dev machine currently stuck in NoState (not connected).
+ 13. Make C1, C2, S-4 interactive in 3D Module (needs server endpoints).
+ 14. Live sync — real-time updates across roles (currently both poll /api/stow/locations every 4 s).
+ 15. Demo video / brochure export — TrifoldBrochureScreen.tsx exports a PDF.
+
+DEMO SCRIPT (3-minute pitch)
+-----------------------------
+  1. Login as Ground (badge 0003104127) → show Dashboard live feeds
+  2. Go to Orders → Place New Order (e.g., "Medical Gloves ×10")
+  3. Switch tab/window → Login as Vendor → My Orders shows PO within 5s
+  4. Vendor: Pick All → Tag All RFID → Ship to Ground →
+     Invoice and Shipment appear in respective tabs
+  5. Back as Ground → Receive screen shows inbound shipment
+  6. Pack screen → Pack into CTB → Stow in 3D Module
+  7. Switch to Crew (badge 0003070837) → Take out item (scan or type UID)
+  8. Crew → Low Resources → submit request → Ground sees it under Space Requests
+================================================================================

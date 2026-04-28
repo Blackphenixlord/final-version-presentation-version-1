@@ -1,0 +1,946 @@
+openapi: "3.1.0"
+info:
+  title: DSLM Edge Server API
+  version: "1.0.0"
+  description: |
+    NASA HUNCH / DSLM inventory management API.
+    Supports three roles: Crew (ISS), Ground (KSC), Vendor.
+    Run with NO_DB=1 for in-memory mode (no PostgreSQL required).
+  contact:
+    name: NASA HUNCH Team
+
+servers:
+  - url: http://localhost:8080/api
+    description: Local development
+  - url: http://{tailscaleHost}:8080/api
+    description: Tailscale edge deployment
+    variables:
+      tailscaleHost:
+        default: "100.x.x.x"
+
+tags:
+  - name: Health
+  - name: Auth
+    description: Badge-based authentication
+  - name: Inventory
+    description: Items, locations, stock levels, logs
+  - name: RFID
+    description: Tag scanning, mapping, and active feed
+  - name: Crew
+    description: ISS crew operations (take out, return, dispose, requests)
+  - name: Ground
+    description: KSC warehouse operations (receive, tag, pack, stow, move)
+  - name: Vendor
+    description: External supplier operations (ship, invoices)
+  - name: Shipments
+    description: Inbound and outbound shipment tracking
+  - name: Messages
+    description: X-400/X-500 inter-system messages
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: Server is up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+
+  # ── Auth ─────────────────────────────────────────────────────────────
+
+  /auth/badge:
+    post:
+      tags: [Auth]
+      summary: Authenticate with RFID badge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [raw]
+              properties:
+                raw:
+                  type: string
+                  description: Raw badge UID from RFID reader
+                  example: "0003070837"
+      responses:
+        "200":
+          description: Badge recognised — returns role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BadgeResponse"
+        "404":
+          description: Badge not registered
+
+  /auth/badge/register:
+    post:
+      tags: [Auth]
+      summary: Register a new badge for a role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [raw, uiMode]
+              properties:
+                raw: { type: string }
+                uiMode:
+                  type: string
+                  enum: [crew, ground, vendor]
+      responses:
+        "200":
+          description: Badge registered
+        "404":
+          description: Endpoint not available in this deployment mode
+
+  # ── Inventory ────────────────────────────────────────────────────────
+
+  /items:
+    get:
+      tags: [Inventory]
+      summary: List all inventory items
+      responses:
+        "200":
+          description: Array of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Item"
+
+  /locations:
+    get:
+      tags: [Inventory]
+      summary: List warehouse locations
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Location"
+
+  /stocks:
+    get:
+      tags: [Inventory]
+      summary: Current stock levels per location
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Stock"
+
+  /logs:
+    get:
+      tags: [Inventory]
+      summary: Inventory transaction log
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogEntry"
+
+  /config:
+    get:
+      tags: [Inventory]
+      summary: Mission configuration (mission name, callsign, etc.)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+
+  # ── RFID ─────────────────────────────────────────────────────────────
+
+  /rfid/active:
+    get:
+      tags: [RFID]
+      summary: Live RFID activity feed (poll every 4s)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RfidEntry"
+
+  /rfid/unknown:
+    get:
+      tags: [RFID]
+      summary: Unrecognised RFID tags waiting to be mapped
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    uid: { type: string }
+                    seenAt: { type: string, format: date-time }
+
+  /rfid/scan:
+    post:
+      tags: [RFID]
+      summary: Process an RFID scan (checkin / checkout)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardHex]
+              properties:
+                cardHex: { type: string }
+                mode: { type: string, enum: [IN, OUT] }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RfidScanResponse"
+
+  /rfid/map:
+    post:
+      tags: [RFID]
+      summary: Map an RFID UID to an item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uid, itemId]
+              properties:
+                uid: { type: string }
+                itemId: { type: string }
+      responses:
+        "200":
+          description: Mapping saved
+
+  /rfid/mappings:
+    get:
+      tags: [RFID]
+      summary: All UID→item mappings
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  # ── Crew ─────────────────────────────────────────────────────────────
+
+  /crew/scan:
+    post:
+      tags: [Crew]
+      summary: Crew scan — auto-detect checkin or checkout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardHex]
+              properties:
+                cardHex: { type: string }
+                qty: { type: integer, default: 1 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RfidScanResponse"
+
+  /crew/remove:
+    post:
+      tags: [Crew]
+      summary: Crew: take item out (checkout)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardHex]
+              properties:
+                cardHex: { type: string }
+                qty: { type: integer, default: 1 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RfidScanResponse"
+
+  /crew/return:
+    post:
+      tags: [Crew]
+      summary: Crew: return item (checkin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardHex]
+              properties:
+                cardHex: { type: string }
+                qty: { type: integer, default: 1 }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RfidScanResponse"
+
+  /crew/dispose:
+    post:
+      tags: [Crew]
+      summary: Crew: dispose item (trash, sends X-400 message)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardHex]
+              properties:
+                cardHex: { type: string }
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /crew/requests:
+    get:
+      tags: [Crew]
+      summary: Get all crew resource requests (Ground reads these)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CrewRequest"
+    post:
+      tags: [Crew]
+      summary: Submit a low-resources request (Crew sends)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CrewRequestInput"
+      responses:
+        "201":
+          description: Request created
+
+  /crew/requests/{id}/status:
+    patch:
+      tags: [Crew]
+      summary: Update request status (Ground approves/denies/fulfils)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [pending, approved, denied, fulfilled]
+      responses:
+        "200":
+          description: Status updated
+
+  # ── Ground ───────────────────────────────────────────────────────────
+
+  /ground/orders:
+    get:
+      tags: [Ground]
+      summary: List purchase orders sent to vendor
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PurchaseOrder"
+    post:
+      tags: [Ground]
+      summary: Place a new purchase order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseOrderInput"
+      responses:
+        "201":
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PurchaseOrder"
+
+  /ground/orders/{poNumber}/status:
+    patch:
+      tags: [Ground]
+      summary: Update order status (e.g., mark as shipped)
+      parameters:
+        - name: poNumber
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [open, in_progress, shipped, fulfilled, cancelled]
+      responses:
+        "200":
+          description: Status updated
+
+  /stow/locations:
+    get:
+      tags: [Ground]
+      summary: All 3D module stow locations (144 slots)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StowLocation"
+
+  /stow:
+    post:
+      tags: [Ground]
+      summary: Stow an item in a location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId, locationCode]
+              properties:
+                itemId: { type: string }
+                locationCode: { type: string, example: "S1-D2-L03" }
+      responses:
+        "200":
+          description: Item stowed
+
+  /pack:
+    post:
+      tags: [Ground]
+      summary: Pack item into container
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId, containerId]
+              properties:
+                itemId: { type: string }
+                containerId: { type: string }
+      responses:
+        "200":
+          description: Item packed
+
+  /move:
+    post:
+      tags: [Ground]
+      summary: Move item to a new location
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId, toLocation, reason]
+              properties:
+                itemId: { type: string }
+                toLocation: { type: string }
+                reason: { type: string }
+      responses:
+        "200":
+          description: Item moved
+
+  /reserves:
+    get:
+      tags: [Ground]
+      summary: List inventory reserves (incoming from vendor/missions)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Reserve"
+    post:
+      tags: [Ground]
+      summary: Create a new inventory reserve
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReserveInput"
+      responses:
+        "201":
+          description: Reserve created
+
+  /tag/items:
+    get:
+      tags: [Ground]
+      summary: Items available for RFID tagging
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+
+  /tag/pair:
+    post:
+      tags: [Ground]
+      summary: Pair RFID UID to item (Tag screen)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uid, itemId]
+              properties:
+                uid: { type: string }
+                itemId: { type: string }
+      responses:
+        "200":
+          description: Pair saved
+
+  /tag/verify:
+    post:
+      tags: [Ground]
+      summary: Verify RFID tag is readable and paired
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [uid]
+              properties:
+                uid: { type: string }
+      responses:
+        "200":
+          description: Verification result
+
+  # ── Vendor ───────────────────────────────────────────────────────────
+
+  /vendor/ship:
+    post:
+      tags: [Vendor]
+      summary: Vendor ships items to Ground (creates inbound shipment)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [poNumber, vendorName, items]
+              properties:
+                poNumber: { type: string }
+                vendorName: { type: string }
+                description: { type: string }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [sku, name, qty]
+                    properties:
+                      sku: { type: string }
+                      name: { type: string }
+                      qty: { type: integer }
+      responses:
+        "200":
+          description: Shipment created
+
+  # ── Shipments ────────────────────────────────────────────────────────
+
+  /shipments:
+    get:
+      tags: [Shipments]
+      summary: All shipments
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shipment"
+
+  /shipments/inbound:
+    get:
+      tags: [Shipments]
+      summary: Inbound shipments (Ground receives these)
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Shipment"
+
+  /shipments/{id}/manifest:
+    get:
+      tags: [Shipments]
+      summary: Line-item manifest for a specific shipment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Manifest with line items
+
+  /shipments/{id}/lines/{sku}/count:
+    post:
+      tags: [Shipments]
+      summary: Count received units for a manifest line
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: sku
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [counted]
+              properties:
+                counted: { type: integer }
+      responses:
+        "200":
+          description: Count recorded
+
+  /shipments/{id}/process:
+    post:
+      tags: [Shipments]
+      summary: Mark shipment as fully received
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Shipment processed
+
+  # ── Messages ─────────────────────────────────────────────────────────
+
+  /messages:
+    get:
+      tags: [Messages]
+      summary: X-400/X-500 message queue
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      tags: [Messages]
+      summary: Send a message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MessageInput"
+      responses:
+        "201":
+          description: Message sent
+
+# ── Components ──────────────────────────────────────────────────────────
+
+components:
+  schemas:
+    BadgeResponse:
+      type: object
+      properties:
+        actor: { type: string, example: "crew" }
+        uiMode: { type: string, enum: [crew, ground, vendor] }
+        badge: { type: string }
+
+    Item:
+      type: object
+      properties:
+        id: { type: string }
+        sku: { type: string }
+        name: { type: string }
+        description: { type: string }
+        safetyStock: { type: integer }
+        reorderPoint: { type: integer }
+        locQty: { type: integer }
+        total: { type: integer }
+        status: { type: string, enum: [ok, low, critical] }
+
+    Location:
+      type: object
+      properties:
+        id: { type: string }
+        code: { type: string, example: "S1-D2-L03" }
+        description: { type: string }
+
+    Stock:
+      type: object
+      properties:
+        itemId: { type: string }
+        locationId: { type: string }
+        qty: { type: integer }
+        expiresAt: { type: string, format: date, nullable: true }
+
+    LogEntry:
+      type: object
+      properties:
+        id: { type: string }
+        timestamp: { type: string, format: date-time }
+        itemId: { type: string }
+        locationId: { type: string }
+        mode: { type: string, enum: [IN, OUT] }
+        qty: { type: integer }
+        actor: { type: string }
+        reason: { type: string }
+        workOrder: { type: string, nullable: true }
+
+    RfidEntry:
+      type: object
+      properties:
+        tagId: { type: string }
+        name: { type: string }
+        location: { type: string }
+        zone: { type: string }
+        status: { type: string, enum: [ACTIVE, TAGGED, DISPOSED, NEEDS_VERIFY] }
+        eventType: { type: string }
+        detail: { type: string }
+        when: { type: string, format: date-time }
+        actor: { type: string }
+
+    RfidScanResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        action: { type: string, enum: [CHECKIN, CHECKOUT] }
+        itemId: { type: string }
+        itemSku: { type: string }
+        locationId: { type: string }
+        cardHex: { type: string }
+        qty: { type: integer }
+        newQty: { type: integer }
+        status: { type: string }
+        log: { $ref: "#/components/schemas/LogEntry" }
+        error: { type: string, nullable: true }
+
+    CrewRequest:
+      type: object
+      properties:
+        id: { type: string }
+        category: { type: string }
+        description: { type: string }
+        urgency: { type: string, enum: [normal, high, critical] }
+        status: { type: string, enum: [pending, approved, denied, fulfilled] }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              qty: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    CrewRequestInput:
+      type: object
+      required: [category, urgency, items]
+      properties:
+        category: { type: string }
+        description: { type: string }
+        urgency: { type: string, enum: [normal, high, critical] }
+        items:
+          type: array
+          items:
+            type: object
+            required: [name, qty]
+            properties:
+              name: { type: string }
+              qty: { type: integer }
+
+    PurchaseOrder:
+      type: object
+      properties:
+        poNumber: { type: string, example: "PO-2025-0001" }
+        description: { type: string }
+        dueDate: { type: string, format: date }
+        status: { type: string, enum: [open, in_progress, shipped, fulfilled, cancelled] }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              sku: { type: string }
+              name: { type: string }
+              qty: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    PurchaseOrderInput:
+      type: object
+      required: [description, items]
+      properties:
+        description: { type: string }
+        dueDate: { type: string, format: date }
+        items:
+          type: array
+          items:
+            type: object
+            required: [name, qty]
+            properties:
+              name: { type: string }
+              qty: { type: integer, minimum: 1 }
+
+    StowLocation:
+      type: object
+      properties:
+        code: { type: string, example: "S1-D2-L03" }
+        shelf: { type: integer }
+        depth: { type: integer }
+        level: { type: integer }
+        occupied: { type: boolean }
+        itemId: { type: string, nullable: true }
+        itemName: { type: string, nullable: true }
+
+    Reserve:
+      type: object
+      properties:
+        reserveId: { type: string }
+        description: { type: string }
+        source: { type: string }
+        eta: { type: string, format: date }
+        status: { type: string, enum: [in_transit, arrived, unpacked, cancelled] }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              qty: { type: integer }
+        createdAt: { type: string, format: date-time }
+
+    ReserveInput:
+      type: object
+      required: [description, items]
+      properties:
+        description: { type: string }
+        source: { type: string, default: "Vendor" }
+        eta: { type: string, format: date }
+        items:
+          type: array
+          items:
+            type: object
+            required: [name, qty]
+            properties:
+              name: { type: string }
+              qty: { type: integer }
+
+    Shipment:
+      type: object
+      properties:
+        id: { type: string }
+        vendor: { type: string }
+        status: { type: string, enum: [pending, in-transit, received, processed, discrepancy] }
+        createdAt: { type: string, format: date-time }
+        lines:
+          type: array
+          items:
+            type: object
+            properties:
+              sku: { type: string }
+              name: { type: string }
+              qty: { type: integer }
+              counted: { type: integer }
+
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        channel: { type: string, enum: [X-400, X-500] }
+        title: { type: string }
+        body: { type: string }
+        author: { type: string }
+        priority: { type: string, enum: [normal, high] }
+        createdAt: { type: string, format: date-time }
+
+    MessageInput:
+      type: object
+      required: [channel, title, body]
+      properties:
+        channel: { type: string, enum: [X-400, X-500] }
+        title: { type: string }
+        body: { type: string }
+        author: { type: string }
+        priority: { type: string, enum: [normal, high], default: normal }

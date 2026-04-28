@@ -1,0 +1,36 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Move",
+    "description": "Relocate an object to a new zone or CTB path.",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "objectType": { "$ref": "../defs/common.json#/$defs/ObjectType" },
+      "objectId":   { "$ref": "../defs/common.json#/$defs/uuidV7" },
+      "toZoneId":   { "$ref": "../defs/common.json#/$defs/uuidV7" },
+      "toCtbPath": {
+        "type": "array",
+        "items": { "$ref": "../defs/common.json#/$defs/uuidV7" },
+        "minItems": 0,
+        "maxItems": 5,
+        "uniqueItems": true
+      },
+      "note": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "required": ["objectType", "objectId", "toCtbPath"],
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": { "toZoneId": { "$ref": "../defs/common.json#/$defs/uuidV7" } },
+        "required": ["toZoneId"]
+      },
+      {
+        "type": "object",
+        "properties": { "toCtbPath": { "type": "array", "minItems": 1 } },
+        "required": ["toCtbPath"]
+      }
+    ],
+    "examples": [
+      { "objectType": "CONTAINER", "objectId": "018f1b3c-9c8a-7a1b-b2c3-4d5e6f7080ef", "toZoneId": "018f1b3c-9c8a-7a1b-b2c3-4d5e6f7080aa", "toCtbPath": [] }
+    ]
+  }

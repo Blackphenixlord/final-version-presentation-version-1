@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0c1018" media="(prefers-color-scheme: dark)" />
+  <meta name="theme-color" content="#eff1f5" media="(prefers-color-scheme: light)" />
+  <title>DSLM — NASA HUNCH</title>
+  <script type="module" crossorigin src="/assets/index-DnucQwka.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DtR1bAnN.css">
+</head>
+
+<body>
+  <div id="root">
+    <div id="pre-react"
+      style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0b0e14;color:#9ba4b0;font-family:system-ui,sans-serif;font-size:0.9rem">
+      Loading DSLM…</div>
+  </div>
+  <div id="crash-display"
+    style="display:none;position:fixed;inset:0;z-index:99999;background:#1a1a2e;color:#e6edf3;font-family:monospace;padding:2rem;overflow:auto">
+    <h2 style="color:#bf616a;margin:0 0 1rem">⚠ Application Error</h2>
+    <pre id="crash-msg" style="white-space:pre-wrap;font-size:0.85rem;color:#d08770"></pre>
+    <button onclick="localStorage.clear();sessionStorage.clear();location.href='/'"
+      style="margin-top:1.5rem;padding:0.6rem 1.2rem;background:#d08770;color:#fff;border:none;border-radius:0.5rem;cursor:pointer;font-size:0.9rem">Clear
+      session &amp; reload</button>
+  </div>
+  <script>
+    window.onerror = function (m, s, l, c, e) {
+      var d = document.getElementById('crash-display'), p = document.getElementById('crash-msg');
+      if (d && p) { d.style.display = 'block'; p.textContent = 'Error: ' + m + '\nSource: ' + (s || '') + (l ? ':' + l : '') + '\n' + (e && e.stack ? '\n' + e.stack : ''); }
+    };
+    window.onunhandledrejection = function (ev) {
+      var d = document.getElementById('crash-display'), p = document.getElementById('crash-msg');
+      if (d && p) { d.style.display = 'block'; p.textContent = 'Unhandled promise rejection:\n' + (ev.reason && ev.reason.stack || ev.reason || 'Unknown'); }
+    };
+  </script>
+</body>
+
+</html>

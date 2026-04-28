@@ -1,0 +1,18 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Zone",
+    "description": "Canonical location segment (e.g., rack/row/level/bin).",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "id": { "$ref": "../defs/common.json#/$defs/uuidV7" },
+      "code": { "$ref": "../defs/common.json#/$defs/zoneCode" },
+      "label": { "type": "string", "minLength": 1, "maxLength": 120 },
+      "nfcUid": { "$ref": "../defs/common.json#/$defs/tagUid" },
+      "parentId": { "$ref": "../defs/common.json#/$defs/uuidV7" }
+    },
+    "required": ["id", "code", "label"],
+    "examples": [
+      { "id": "018f1b3c-9c8a-7a1b-b2c3-4d5e6f7080b3", "code": "A1-B2-L1-BinA", "label": "Rack A / Row 1 / Level 1 / Bin A" }
+    ]
+  }

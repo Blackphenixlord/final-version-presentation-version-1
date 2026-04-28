@@ -1,0 +1,21 @@
+[Unit]
+Description=NASA HUNCH Edge Server
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/full-NASA/dlsm-temp/dlsm-inv-sys-client-main/services/edge-server
+Environment=NO_DB=1
+Environment=SERVE_STATIC=1
+Environment=PORT=8080
+Environment=HOST=0.0.0.0
+ExecStart=/usr/bin/env bash /opt/full-NASA/start-server-linux.sh
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target

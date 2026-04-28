@@ -1,0 +1,16 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Tag",
+    "description": "Physical NFC label/card that devices scan.",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "id": { "$ref": "../defs/common.json#/$defs/uuidV7" },
+      "kind": { "$ref": "../defs/common.json#/$defs/TagKind" },
+      "uid": { "$ref": "../defs/common.json#/$defs/tagUid" }
+    },
+    "required": ["id", "kind", "uid"],
+    "examples": [
+      { "id": "018f1b3c-9c8a-7a1b-b2c3-4d5e6f7080c4", "kind": "NFC_HF", "uid": "04A1B2C3D4E5F6" }
+    ]
+  }

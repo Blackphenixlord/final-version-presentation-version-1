@@ -1,0 +1,17 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Check-Out",
+    "description": "Take an object out of stock/service (opens a transaction).",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "objectType": { "$ref": "../defs/common.json#/$defs/ObjectType" },
+      "objectId":   { "$ref": "../defs/common.json#/$defs/uuidV7" },
+      "expectedReturnAt": { "$ref": "../defs/common.json#/$defs/timestamp" },
+      "reason": { "type": "string", "minLength": 1, "maxLength": 200 }
+    },
+    "required": ["objectType", "objectId"],
+    "examples": [
+      { "objectType": "ITEM", "objectId": "018f1b3c-9c8a-7a1b-b2c3-4d5e6f7080cc" }
+    ]
+  }

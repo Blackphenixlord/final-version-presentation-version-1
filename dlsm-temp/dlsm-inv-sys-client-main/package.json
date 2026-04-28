@@ -1,0 +1,25 @@
+{
+	"devDependencies": {
+		"@redocly/cli": "^2.2.1",
+		"ajv": "^8.17.1",
+		"ajv-cli": "^5.0.0",
+		"ajv-formats": "^3.0.1",
+		"swagger-cli": "^4.0.4",
+		"vite": "^6.4.1"
+	},
+	"scripts": {
+		"schemas:compile": "node scripts/compile-schemas.mjs",
+		"openapi:lint": "redocly lint shared/openapi/mission-inventory.yaml",
+		"openapi:bundle": "swagger-cli bundle -o dist/openapi.json -t json shared/openapi/mission-inventory.yaml",
+		"fixtures:all": "node scripts/test-fixtures.mjs",
+		"dev:server": "node dev-server/server.mjs",
+		"hit:ok": "curl -sS -H 'content-type: application/json' --data @tests/fixtures/ok/batch-checkin.json http://localhost:8080/api/ops/events | jq",
+		"get:placement:ok": "OID=$(jq -r '.events[0].payload.objectId' tests/fixtures/ok/batch-checkin.json); OT=$(jq -r '.events[0].payload.objectType' tests/fixtures/ok/batch-checkin.json); curl -sS \"http://localhost:8080/api/read/placement/$OT/$OID\" | jq"
+	},
+	"dependencies": {
+		"@serialport/parser-readline": "^13.0.0",
+		"node-fetch": "^3.3.2",
+		"pg": "^8.16.3",
+		"serialport": "^13.0.0"
+	}
+}

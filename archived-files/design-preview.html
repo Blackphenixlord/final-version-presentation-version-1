@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DSLM — Design Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c1018; --surface: #141a24; --surface2: #1c2434; --surface3: #253040;
+      --border: rgba(190,210,230,0.10); --text: #dfe6ef; --muted: #8898aa; --subtle: #52637a;
+      --accent: #d08770; --green: #a3be8c; --red: #bf616a; --purple: #b48ead;
+      --teal: #8fbcbb; --blue: #88c0d0; --blue2: #81a1c1; --blue3: #5e81ac;
+      --sidebar: #090e18;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;}
+
+    /* ── Preview tab bar ── */
+    .ptabs{position:fixed;top:0;left:0;right:0;z-index:1000;height:40px;display:flex;align-items:center;padding:0 1rem;gap:.2rem;background:rgba(9,14,24,.96);backdrop-filter:blur(20px);border-bottom:1px solid rgba(136,192,208,.13);}
+    .ptab{padding:.28rem .8rem;border-radius:.4rem;border:none;background:transparent;color:var(--muted);font-size:.75rem;font-weight:500;cursor:pointer;font-family:inherit;transition:all .15s;}
+    .ptab:hover{background:rgba(136,192,208,.08);color:var(--text);}
+    .ptab.active{background:rgba(136,192,208,.13);color:var(--blue);font-weight:600;}
+    .ptab-label{margin-left:auto;font-size:.6rem;color:var(--subtle);font-weight:700;letter-spacing:.09em;text-transform:uppercase;}
+
+    .screen{display:none;position:fixed;top:40px;left:0;right:0;bottom:0;flex-direction:column;}
+    .screen.active{display:flex;}
+
+    /* ═══ SCROLLBAR ═══ */
+    ::-webkit-scrollbar{width:4px;height:4px;}
+    ::-webkit-scrollbar-track{background:transparent;}
+    ::-webkit-scrollbar-thumb{background:rgba(82,99,122,.32);border-radius:10px;}
+    ::-webkit-scrollbar-thumb:hover{background:rgba(82,99,122,.5);}
+
+    /* ═══ SHARED TOPBAR ═══ */
+    .topbar{display:flex;align-items:center;padding:0 1.25rem;height:54px;flex-shrink:0;background:rgba(10,13,20,.92);backdrop-filter:blur(20px);border-bottom:1px solid rgba(190,210,230,.07);gap:.75rem;z-index:10;}
+    .tb-logomark{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;flex-shrink:0;}
+    .tb-name{font-size:.9rem;font-weight:700;color:var(--text);letter-spacing:-.01em;}
+    .tb-sub{font-size:.62rem;color:var(--subtle);font-weight:500;margin-top:.05rem;}
+    .tb-mission{display:flex;align-items:center;gap:.4rem;padding:.28rem .7rem;border-radius:999px;font-size:.67rem;font-weight:600;margin-left:.5rem;}
+    .tb-right{margin-left:auto;display:flex;align-items:center;gap:.45rem;}
+    .tb-sync{display:flex;align-items:center;gap:.35rem;padding:.28rem .65rem;border-radius:999px;font-size:.65rem;}
+    .tb-sync-dot{width:5px;height:5px;border-radius:50%;}
+    .tb-sync-label{font-weight:600;}
+    .tb-sync-time{color:var(--subtle);}
+    .tb-btn{width:30px;height:30px;border-radius:7px;border:1px solid rgba(190,210,230,.08);background:rgba(190,210,230,.04);color:var(--muted);display:grid;place-items:center;cursor:pointer;font-size:.82rem;transition:all .15s;}
+    .tb-btn:hover{background:rgba(190,210,230,.1);color:var(--text);}
+    .tb-logout{padding:.28rem .65rem;border-radius:6px;border:1px solid rgba(190,210,230,.09);background:rgba(190,210,230,.04);color:var(--muted);font-size:.68rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
+    .tb-logout:hover{color:var(--red);border-color:rgba(191,97,106,.3);background:rgba(191,97,106,.06);}
+
+    /* pulse animations */
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.6;transform:scale(.85);}}
+    @keyframes ring-pulse{0%,100%{box-shadow:0 0 0 0 rgba(136,192,208,.2);}50%{box-shadow:0 0 0 10px rgba(136,192,208,0);}}
+    @keyframes sweep{0%{transform:translateX(-100%);}100%{transform:translateX(400%);}}
+
+    /* ═══════════════ LOGIN ═══════════════ */
+    #screen-login{background:var(--bg);align-items:center;justify-content:center;overflow:hidden;}
+    #stars-canvas{position:absolute;inset:0;pointer-events:none;}
+    .nebula{position:absolute;border-radius:50%;filter:blur(90px);pointer-events:none;}
+
+    .login-card{position:relative;z-index:10;width:400px;background:rgba(20,26,36,.78);border:1px solid rgba(136,192,208,.12);border-radius:1.5rem;padding:2.1rem 1.85rem;backdrop-filter:blur(32px) saturate(1.5);box-shadow:0 24px 64px rgba(0,0,0,.6),0 0 0 1px rgba(136,192,208,.06),inset 0 1px 0 rgba(255,255,255,.04);}
+
+    .login-header{display:flex;align-items:center;gap:.9rem;margin-bottom:1.6rem;}
+    .login-logo{width:46px;height:46px;border-radius:13px;background:linear-gradient(145deg,#88c0d0,#5e81ac);display:grid;place-items:center;box-shadow:0 4px 18px rgba(136,192,208,.28),inset 0 1px 0 rgba(255,255,255,.2);flex-shrink:0;}
+    .login-title{font-size:1.4rem;font-weight:800;color:var(--text);letter-spacing:-.03em;line-height:1;}
+    .login-sub{font-size:.65rem;color:var(--subtle);font-weight:500;letter-spacing:.09em;text-transform:uppercase;margin-top:.22rem;}
+
+    .mission-badge{display:flex;align-items:center;gap:.5rem;padding:.45rem .8rem;background:rgba(163,190,140,.07);border:1px solid rgba(163,190,140,.18);border-radius:.65rem;margin-bottom:1.4rem;}
+    .mb-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s ease-in-out infinite;flex-shrink:0;}
+    .mb-text{font-size:.7rem;color:var(--green);font-weight:600;letter-spacing:.03em;}
+    .mb-clock{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:.66rem;color:var(--subtle);}
+
+    .login-label{font-size:.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.38rem;}
+    .login-input{width:100%;padding:.75rem .95rem;background:rgba(28,36,52,.75);border:1px solid rgba(136,192,208,.12);border-radius:.65rem;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.98rem;letter-spacing:.1em;outline:none;box-shadow:inset 0 2px 4px rgba(0,0,0,.2);transition:border-color .2s,box-shadow .2s;}
+    .login-input::placeholder{color:var(--subtle);letter-spacing:.05em;}
+    .login-input:focus{border-color:rgba(136,192,208,.38);box-shadow:0 0 0 3px rgba(136,192,208,.1),inset 0 2px 4px rgba(0,0,0,.15);}
+
+    .scan-bar{height:2px;background:rgba(136,192,208,.07);border-radius:2px;overflow:hidden;margin-bottom:1.2rem;}
+    .scan-bar::after{content:'';display:block;height:100%;width:32%;background:linear-gradient(90deg,transparent,rgba(136,192,208,.75),transparent);animation:sweep 2.4s ease-in-out infinite;}
+
+    .login-divider{display:flex;align-items:center;gap:.65rem;font-size:.58rem;color:var(--subtle);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem;}
+    .login-divider::before,.login-divider::after{content:'';flex:1;height:1px;background:rgba(190,210,230,.07);}
+
+    .badge-list{display:flex;flex-direction:column;gap:.28rem;}
+    .badge-item{display:flex;align-items:center;gap:.7rem;padding:.6rem .8rem;background:rgba(28,36,52,.55);border:1px solid rgba(190,210,230,.06);border-radius:.65rem;cursor:pointer;transition:all .15s;}
+    .badge-item:hover{background:rgba(28,36,52,.9);border-color:rgba(136,192,208,.14);transform:translateX(2px);}
+    .badge-icon{width:28px;height:28px;border-radius:7px;display:grid;place-items:center;flex-shrink:0;}
+    .badge-id{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--text);letter-spacing:.07em;flex:1;}
+    .badge-role{font-size:.62rem;font-weight:700;padding:.12rem .45rem;border-radius:999px;}
+
+    .login-footer{margin-top:1.4rem;display:flex;align-items:center;justify-content:center;gap:.5rem;font-size:.58rem;color:var(--subtle);letter-spacing:.05em;}
+
+    /* ═══════════════ SHARED LAYOUT ═══════════════ */
+    .body-layout{display:grid;grid-template-columns:224px 1fr;flex:1;min-height:0;overflow:hidden;}
+
+    .sidebar{background:var(--sidebar);border-right:1px solid rgba(190,210,230,.07);display:flex;flex-direction:column;padding:.65rem .6rem;overflow-y:auto;gap:.12rem;}
+
+    .user-card{display:flex;align-items:center;gap:.6rem;padding:.7rem .72rem;margin-bottom:.45rem;border-radius:.75rem;}
+    .user-avatar{width:32px;height:32px;border-radius:8px;display:grid;place-items:center;font-size:.85rem;flex-shrink:0;}
+    .user-name{font-size:.8rem;font-weight:700;color:var(--text);line-height:1.2;}
+    .user-role{font-size:.58rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;}
+
+    .sec-label{font-size:.57rem;font-weight:700;color:var(--subtle);text-transform:uppercase;letter-spacing:.12em;padding:.55rem .72rem .25rem;}
+    .sec-label+.sec-label,.sec-label:not(:first-of-type){margin-top:.4rem;border-top:1px solid rgba(190,210,230,.06);padding-top:.65rem;}
+
+    .nav-btn{display:flex;align-items:center;gap:.62rem;padding:.52rem .72rem;border-radius:.55rem;border:none;background:transparent;color:var(--muted);font-family:inherit;font-size:.82rem;font-weight:500;cursor:pointer;transition:all .13s;text-align:left;width:100%;}
+    .nav-btn:hover{color:var(--text);}
+    .nav-btn.active{color:var(--text);font-weight:600;}
+    .nav-icon{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;flex-shrink:0;background:rgba(190,210,230,.05);}
+    .nav-badge{margin-left:auto;font-size:.58rem;font-weight:700;padding:.08rem .38rem;border-radius:999px;}
+
+    .sidebar-footer{margin-top:auto;padding:.6rem .72rem;border-radius:.65rem;}
+    .sf-label{font-size:.56rem;color:var(--subtle);font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.3rem;}
+    .sf-phase{font-size:.76rem;font-weight:700;}
+    .sf-detail{font-size:.63rem;color:var(--muted);margin-top:.12rem;}
+
+    .main-content{flex:1;min-height:0;overflow-y:auto;padding:1.2rem 1.4rem;display:flex;flex-direction:column;gap:1.1rem;}
+
+    /* ═══ STAT CARDS ═══ */
+    .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;}
+    .stat-card{background:var(--surface);border:1px solid rgba(190,210,230,.08);border-radius:.95rem;padding:.9rem 1rem;display:flex;flex-direction:column;gap:.65rem;position:relative;overflow:hidden;transition:border-color .2s,box-shadow .2s;}
+    .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:.95rem .95rem 0 0;}
+    .stat-card:hover{border-color:rgba(190,210,230,.16);box-shadow:0 4px 20px rgba(0,0,0,.25);}
+    .sc-green::before{background:linear-gradient(90deg,var(--green),transparent);}
+    .sc-blue::before{background:linear-gradient(90deg,var(--blue),transparent);}
+    .sc-accent::before{background:linear-gradient(90deg,var(--accent),transparent);}
+    .sc-teal::before{background:linear-gradient(90deg,var(--teal),transparent);}
+    .sc-head{display:flex;align-items:flex-start;justify-content:space-between;}
+    .sc-label{font-size:.62rem;font-weight:700;color:var(--subtle);text-transform:uppercase;letter-spacing:.1em;}
+    .sc-icon{width:26px;height:26px;border-radius:6px;display:grid;place-items:center;}
+    .sc-val{font-size:1.9rem;font-weight:800;color:var(--text);letter-spacing:-.04em;line-height:1;}
+    .sc-sub{display:flex;align-items:center;gap:.32rem;font-size:.65rem;color:var(--muted);}
+    .trend{font-size:.62rem;font-weight:700;padding:.08rem .3rem;border-radius:4px;}
+    .trend-g{background:rgba(163,190,140,.12);color:var(--green);}
+    .trend-w{background:rgba(208,135,112,.12);color:var(--accent);}
+    .trend-r{background:rgba(191,97,106,.12);color:var(--red);}
+
+    /* ═══ FEEDS ═══ */
+    .feeds-grid{display:grid;grid-template-columns:1fr 1fr;gap:.8rem;flex:1;min-height:280px;}
+    .feed-card{background:var(--surface);border:1px solid rgba(190,210,230,.07);border-radius:.95rem;display:flex;flex-direction:column;overflow:hidden;}
+    .feed-head{display:flex;align-items:center;justify-content:space-between;padding:.75rem .95rem;border-bottom:1px solid rgba(190,210,230,.06);}
+    .feed-title{font-size:.75rem;font-weight:700;color:var(--text);}
+    .feed-meta{display:flex;align-items:center;gap:.32rem;font-size:.63rem;}
+    .live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+    .feed-body{flex:1;overflow-y:auto;padding:.45rem;display:flex;flex-direction:column;gap:.28rem;}
+
+    .rfid-row{display:flex;align-items:center;gap:.55rem;padding:.5rem .6rem;background:var(--surface2);border-radius:.55rem;border:1px solid rgba(190,210,230,.04);transition:background .12s;}
+    .rfid-row:hover{background:var(--surface3);}
+    .rfid-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+    .rfid-info{flex:1;min-width:0;}
+    .rfid-name{font-size:.77rem;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .rfid-loc{font-size:.6rem;color:var(--subtle);margin-top:.08rem;}
+    .status-pill{font-size:.57rem;font-weight:700;padding:.09rem .33rem;border-radius:4px;letter-spacing:.04em;flex-shrink:0;}
+
+    .msg-row{padding:.6rem .7rem;background:var(--surface2);border-radius:.55rem;border:1px solid rgba(190,210,230,.04);}
+    .msg-row-top{display:flex;align-items:center;gap:.38rem;margin-bottom:.26rem;}
+    .ch-pill{font-size:.56rem;font-weight:700;padding:.09rem .38rem;border-radius:4px;letter-spacing:.04em;}
+    .msg-row-title{font-size:.77rem;font-weight:700;color:var(--text);flex:1;}
+    .msg-row-pri{font-size:.56rem;font-weight:700;padding:.08rem .32rem;border-radius:4px;background:rgba(191,97,106,.15);color:var(--red);letter-spacing:.04em;}
+    .msg-row-body{font-size:.7rem;color:var(--muted);line-height:1.45;}
+    .msg-row-foot{display:flex;gap:.45rem;margin-top:.28rem;font-size:.58rem;color:var(--subtle);}
+
+    /* ═══ PAGE HEADER ═══ */
+    .pg-head{display:flex;align-items:flex-start;justify-content:space-between;}
+    .pg-title{font-size:1.2rem;font-weight:800;color:var(--text);letter-spacing:-.025em;}
+    .pg-desc{font-size:.73rem;color:var(--muted);margin-top:.18rem;}
+    .pg-btns{display:flex;gap:.45rem;}
+    .btn-outline{padding:.4rem .85rem;border-radius:.5rem;border:1px solid rgba(190,210,230,.13);background:transparent;color:var(--muted);font-size:.75rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s;}
+    .btn-outline:hover{background:rgba(190,210,230,.07);color:var(--text);}
+    .btn-primary{padding:.4rem .85rem;border-radius:.5rem;border:none;font-family:inherit;font-size:.75rem;font-weight:600;cursor:pointer;transition:all .15s;}
+    .btn-primary:hover{filter:brightness(1.07);transform:translateY(-1px);}
+
+    /* ═══ CREW ═══ */
+    .scan-zone{width:100%;max-width:460px;padding:1.75rem;background:var(--surface);border:1px solid rgba(136,192,208,.1);border-radius:1.15rem;text-align:center;}
+    .scan-ring{width:68px;height:68px;border-radius:50%;background:rgba(136,192,208,.07);border:2px solid rgba(136,192,208,.2);display:grid;place-items:center;margin:0 auto 1.1rem;animation:ring-pulse 2.5s ease-in-out infinite;}
+    .scan-title{font-size:1rem;font-weight:700;color:var(--text);letter-spacing:-.02em;margin-bottom:.3rem;}
+    .scan-hint{font-size:.76rem;color:var(--muted);line-height:1.5;}
+    .scan-input{width:100%;margin-top:1.1rem;padding:.68rem .9rem;background:rgba(28,36,52,.7);border:1px solid rgba(136,192,208,.14);border-radius:.6rem;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.92rem;outline:none;text-align:center;letter-spacing:.07em;}
+    .recent-label{font-size:.62rem;font-weight:700;color:var(--subtle);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.45rem;}
+    .recent-row{display:flex;align-items:center;gap:.62rem;padding:.55rem .7rem;background:var(--surface);border:1px solid rgba(190,210,230,.06);border-radius:.6rem;margin-bottom:.28rem;}
+
+    /* ═══ VENDOR ═══ */
+    .v-tabs{display:flex;padding:0 1.4rem;border-bottom:1px solid rgba(190,210,230,.07);}
+    .v-tab{padding:.7rem 1rem;font-size:.8rem;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;font-family:inherit;background:none;border-top:none;border-left:none;border-right:none;}
+    .v-tab:hover{color:var(--text);}
+    .v-tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;}
+    .v-content{flex:1;overflow-y:auto;padding:1.4rem;display:flex;flex-direction:column;gap:.9rem;}
+    .order-card{background:var(--surface);border:1px solid rgba(190,210,230,.07);border-radius:.95rem;overflow:hidden;}
+    .order-head{display:flex;align-items:center;gap:.7rem;padding:.8rem 1.05rem;border-bottom:1px solid rgba(190,210,230,.06);}
+    .order-po{font-family:'JetBrains Mono',monospace;font-size:.75rem;font-weight:600;color:var(--blue);}
+    .order-desc{font-size:.86rem;font-weight:600;color:var(--text);flex:1;}
+    .order-chips{padding:.65rem 1.05rem;display:flex;flex-wrap:wrap;gap:.35rem;}
+    .chip{font-size:.68rem;padding:.18rem .5rem;border-radius:.38rem;background:var(--surface2);color:var(--muted);}
+    .chip-r{background:rgba(191,97,106,.07);color:var(--red);}
+    .order-actions{padding:.6rem 1.05rem;border-top:1px solid rgba(190,210,230,.06);display:flex;gap:.45rem;justify-content:flex-end;}
+    .act-btn{padding:.38rem .85rem;border-radius:.48rem;border:none;font-family:inherit;font-size:.73rem;font-weight:600;cursor:pointer;transition:all .15s;}
+    .act-ghost{background:var(--surface2);color:var(--muted);}
+    .act-ghost:hover{background:var(--surface3);color:var(--text);}
+  </style>
+</head>
+<body>
+
+<!-- ── Preview tab bar ── -->
+<div class="ptabs">
+  <button class="ptab active" onclick="show('login',this)">🔐 Login</button>
+  <button class="ptab" onclick="show('ground',this)">📡 Ground Control</button>
+  <button class="ptab" onclick="show('crew',this)">🧑‍🚀 Crew Terminal</button>
+  <button class="ptab" onclick="show('vendor',this)">📦 Vendor Portal</button>
+  <span class="ptab-label">DSLM — Redesign Preview</span>
+</div>
+
+<!-- ════════════════════ LOGIN ════════════════════ -->
+<div class="screen active" id="screen-login" style="background:var(--bg);align-items:center;justify-content:center;overflow:hidden;">
+  <canvas id="stars-canvas" style="position:absolute;inset:0;pointer-events:none;"></canvas>
+  <div class="nebula" style="width:420px;height:320px;background:radial-gradient(ellipse,rgba(94,129,172,.1) 0%,transparent 70%);top:-80px;left:-60px;"></div>
+  <div class="nebula" style="width:500px;height:380px;background:radial-gradient(ellipse,rgba(180,142,173,.07) 0%,transparent 70%);bottom:-120px;right:-80px;"></div>
+  <div class="nebula" style="width:300px;height:220px;background:radial-gradient(ellipse,rgba(143,188,187,.06) 0%,transparent 70%);top:55%;left:50%;transform:translate(-50%,-50%);"></div>
+
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L2 7l10 5 10-5-10-5z" fill="rgba(255,255,255,.95)"/>
+          <path d="M2 17l10 5 10-5" stroke="rgba(255,255,255,.6)" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M2 12l10 5 10-5" stroke="rgba(255,255,255,.35)" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="login-title">DSLM</div>
+        <div class="login-sub">Deep Space Logistics Module</div>
+      </div>
+    </div>
+
+    <div class="mission-badge">
+      <div class="mb-dot"></div>
+      <span class="mb-text">ISS — Expedition 72 Active</span>
+      <span class="mb-clock" id="utc-clock">00:00:00 UTC</span>
+    </div>
+
+    <div class="login-label">Badge ID</div>
+    <input class="login-input" placeholder="0003XXXXXX" autocomplete="off" autofocus>
+    <div class="scan-bar"></div>
+
+    <div class="login-divider">or select test badge</div>
+
+    <div class="badge-list">
+      <div class="badge-item">
+        <div class="badge-icon" style="background:rgba(163,190,140,.14);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--green)" stroke-width="2"/><rect x="14" y="3" width="7" height="4" rx="1.5" stroke="var(--green)" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--green)" stroke-width="2"/><rect x="14" y="11" width="7" height="10" rx="1.5" stroke="var(--green)" stroke-width="2"/></svg>
+        </div>
+        <span class="badge-id">0003104127</span>
+        <span class="badge-role" style="background:rgba(163,190,140,.12);color:var(--green);">Ground</span>
+      </div>
+      <div class="badge-item">
+        <div class="badge-icon" style="background:rgba(136,192,208,.12);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--blue)" stroke-width="2"/><path d="M12 8v4l3 3" stroke="var(--blue)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <span class="badge-id">0003070837</span>
+        <span class="badge-role" style="background:rgba(136,192,208,.12);color:var(--blue);">Crew</span>
+      </div>
+      <div class="badge-item">
+        <div class="badge-icon" style="background:rgba(208,135,112,.12);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="2" stroke="var(--accent)" stroke-width="2"/><path d="M9 8h6M9 12h6M9 16h4" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+        <span class="badge-id">0003200001</span>
+        <span class="badge-role" style="background:rgba(208,135,112,.12);color:var(--accent);">Vendor</span>
+      </div>
+    </div>
+
+    <div class="login-footer">
+      <span>NASA HUNCH</span><span style="opacity:.35">·</span><span>DSLM Inventory v2</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════ GROUND ════════════════════ -->
+<div class="screen" id="screen-ground">
+  <header class="topbar">
+    <div class="tb-logomark" style="background:linear-gradient(145deg,rgba(163,190,140,.9),rgba(163,190,140,.5));box-shadow:0 0 0 1px rgba(163,190,140,.25),0 2px 10px rgba(163,190,140,.18);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" fill="rgba(0,0,0,.65)"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="rgba(0,0,0,.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+    <div><div class="tb-name">DSLM <span style="color:var(--subtle);font-weight:500;font-size:.76rem;">Ground</span></div><div class="tb-sub">Ground Control Station</div></div>
+    <div class="tb-mission" style="background:rgba(94,129,172,.1);border:1px solid rgba(94,129,172,.2);color:var(--blue2);">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--blue2);animation:pulse 2.5s infinite;"></div>
+      ISS Expedition 72 — Phase 3
+    </div>
+    <div class="tb-right">
+      <div class="tb-sync" style="background:rgba(163,190,140,.07);border:1px solid rgba(163,190,140,.15);">
+        <div class="tb-sync-dot" style="background:var(--green);animation:pulse 2s infinite;"></div>
+        <span class="tb-sync-label" style="color:var(--green);">Live</span>
+        <span class="tb-sync-time">Apr 26, 2026</span>
+      </div>
+      <button class="tb-btn" style="position:relative;">🔔<span style="position:absolute;top:3px;right:3px;width:7px;height:7px;border-radius:50%;background:var(--accent);border:2px solid var(--sidebar);"></span></button>
+      <button class="tb-btn">☀</button>
+      <button class="tb-logout">Logout</button>
+    </div>
+  </header>
+
+  <div class="body-layout" style="flex:1;min-height:0;">
+    <nav class="sidebar">
+      <div class="user-card" style="background:rgba(163,190,140,.06);border:1px solid rgba(163,190,140,.12);">
+        <div class="user-avatar" style="background:linear-gradient(145deg,rgba(163,190,140,.7),rgba(94,129,172,.5));">👤</div>
+        <div><div class="user-name">Ground Operator</div><div class="user-role" style="color:var(--green);">Ground Control</div></div>
+      </div>
+
+      <div class="sec-label">Workflow</div>
+      <button class="nav-btn active" style="background:rgba(163,190,140,.13);">
+        <span class="nav-icon" style="background:rgba(163,190,140,.18);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="var(--green)" stroke-width="2"/><rect x="14" y="3" width="7" height="4" rx="1.5" stroke="var(--text)" stroke-width="2"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="var(--green)" stroke-width="2"/><rect x="14" y="11" width="7" height="10" rx="1.5" stroke="var(--text)" stroke-width="2"/></svg>
+        </span>Dashboard
+      </button>
+      <button class="nav-btn" style="">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M4 7h16v10H4V7Z" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"/><path d="M4 10h16M8 14h8" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"/></svg></span>Receive
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M20 13l-7 7-9-9V4h7l9 9Z" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"/></svg></span>Tag
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M7 8l5-5 5 5M5 10h14v11H5V10Z" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Pack
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="var(--muted)" stroke-width="1.5" stroke-linejoin="round"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--muted)" stroke-width="1.5" stroke-linecap="round"/></svg></span>3D Module
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M7 7h10M7 17h10" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"/><path d="M9 9l-2-2 2-2M15 15l2 2-2 2" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Move
+      </button>
+
+      <div class="sec-label">Management</div>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="2" stroke="var(--muted)" stroke-width="2"/><path d="M9 8h6M9 12h6M9 16h4" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"/></svg></span>
+        Orders<span class="nav-badge" style="background:rgba(208,135,112,.15);color:var(--accent);">3</span>
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--muted)" stroke-width="2"/><path d="M12 8v4l3 3" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"/></svg></span>
+        Space Requests<span class="nav-badge" style="background:rgba(208,135,112,.15);color:var(--accent);">2</span>
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M5 6v12a2 2 0 002 2h10a2 2 0 002-2V6" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Reserves
+      </button>
+
+      <div class="sidebar-footer" style="background:rgba(94,129,172,.07);border:1px solid rgba(94,129,172,.13);">
+        <div class="sf-label">Mission Status</div>
+        <div class="sf-phase" style="color:var(--blue2);">Resupply Phase 3</div>
+        <div class="sf-detail">Next docking: T−14d 06h</div>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <div class="pg-head">
+        <div><div class="pg-title">Ground Dashboard</div><div class="pg-desc">Real-time inventory status and RFID activity</div></div>
+        <div class="pg-btns">
+          <button class="btn-outline">Export Report</button>
+          <button class="btn-primary" style="background:var(--green);color:rgba(0,0,0,.72);">+ New Order</button>
+        </div>
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat-card sc-green">
+          <div class="sc-head">
+            <div class="sc-label">Total Items</div>
+            <div class="sc-icon" style="background:rgba(163,190,140,.12);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="var(--green)" stroke-width="1.8" stroke-linejoin="round"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="sc-val">847</div>
+          <div class="sc-sub"><span class="trend trend-g">+12%</span>from last resupply</div>
+        </div>
+        <div class="stat-card sc-blue">
+          <div class="sc-head">
+            <div class="sc-label">Active Tags</div>
+            <div class="sc-icon" style="background:rgba(136,192,208,.12);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M20 13l-7 7-9-9V4h7l9 9Z" stroke="var(--blue)" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5" fill="var(--blue)"/></svg></div>
+          </div>
+          <div class="sc-val">312</div>
+          <div class="sc-sub"><span class="trend trend-g">Live</span>RFID in range</div>
+        </div>
+        <div class="stat-card sc-accent">
+          <div class="sc-head">
+            <div class="sc-label">Pending Orders</div>
+            <div class="sc-icon" style="background:rgba(208,135,112,.12);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><rect x="5" y="3" width="14" height="18" rx="2" stroke="var(--accent)" stroke-width="1.8"/><path d="M9 8h6M9 12h6M9 16h4" stroke="var(--accent)" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="sc-val">5</div>
+          <div class="sc-sub"><span class="trend trend-w">3 urgent</span>awaiting vendor</div>
+        </div>
+        <div class="stat-card sc-teal">
+          <div class="sc-head">
+            <div class="sc-label">In Transit</div>
+            <div class="sc-icon" style="background:rgba(143,188,187,.12);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M5 6v12a2 2 0 002 2h10a2 2 0 002-2V6" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 10h6M9 14h6" stroke="var(--teal)" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="sc-val">28</div>
+          <div class="sc-sub"><span class="trend trend-g">On track</span>items en route</div>
+        </div>
+      </div>
+
+      <div class="feeds-grid">
+        <div class="feed-card">
+          <div class="feed-head">
+            <span class="feed-title">Live RFID Activity</span>
+            <div class="feed-meta"><div class="live-dot"></div><span style="color:var(--green);font-weight:600;">Live</span><span style="color:var(--muted);">· 12 tags</span></div>
+          </div>
+          <div class="feed-body">
+            <div class="rfid-row"><div class="rfid-dot" style="background:var(--green);"></div><div class="rfid-info"><div class="rfid-name">Medical Kit Alpha-3</div><div class="rfid-loc">RACK-C2 · Level 4 · 2m ago</div></div><div class="status-pill" style="background:rgba(163,190,140,.12);color:var(--green);">ACTIVE</div></div>
+            <div class="rfid-row"><div class="rfid-dot" style="background:var(--green);"></div><div class="rfid-info"><div class="rfid-name">EVA Gloves (Pair)</div><div class="rfid-loc">STACK-S1 · Level 8 · 5m ago</div></div><div class="status-pill" style="background:rgba(163,190,140,.12);color:var(--green);">TAGGED</div></div>
+            <div class="rfid-row"><div class="rfid-dot" style="background:var(--accent);"></div><div class="rfid-info"><div class="rfid-name">Food Ration Pack #42</div><div class="rfid-loc">CTB-007 · Awaiting stow · 8m ago</div></div><div class="status-pill" style="background:rgba(208,135,112,.12);color:var(--accent);">NEEDS_VERIFY</div></div>
+            <div class="rfid-row"><div class="rfid-dot" style="background:var(--green);"></div><div class="rfid-info"><div class="rfid-name">O2 Filter Unit B</div><div class="rfid-loc">STACK-S2 · Level 2 · 11m ago</div></div><div class="status-pill" style="background:rgba(163,190,140,.12);color:var(--green);">ACTIVE</div></div>
+            <div class="rfid-row"><div class="rfid-dot" style="background:var(--red);"></div><div class="rfid-info"><div class="rfid-name">Waste Container W-09</div><div class="rfid-loc">Disposal Bay · 15m ago</div></div><div class="status-pill" style="background:rgba(191,97,106,.12);color:var(--red);">DISPOSED</div></div>
+            <div class="rfid-row"><div class="rfid-dot" style="background:var(--green);"></div><div class="rfid-info"><div class="rfid-name">Repair Kit Delta</div><div class="rfid-loc">STACK-S3 · Level 7 · 18m ago</div></div><div class="status-pill" style="background:rgba(163,190,140,.12);color:var(--green);">ACTIVE</div></div>
+          </div>
+        </div>
+
+        <div class="feed-card">
+          <div class="feed-head">
+            <span class="feed-title">X-400 / X-500 Messages</span>
+            <span style="font-size:.63rem;color:var(--muted);">7 total</span>
+          </div>
+          <div class="feed-body">
+            <div class="msg-row">
+              <div class="msg-row-top"><span class="ch-pill" style="background:rgba(136,192,208,.12);color:var(--blue);">X-400</span><span class="msg-row-title">Resupply Manifest Uploaded</span></div>
+              <div class="msg-row-body">Shipment SHP-2026-041 manifest received. 48 line items pending verification at Ground.</div>
+              <div class="msg-row-foot"><span>Ground Control</span><span>Apr 26, 09:14</span></div>
+            </div>
+            <div class="msg-row" style="border:1px solid rgba(191,97,106,.14);">
+              <div class="msg-row-top"><span class="ch-pill" style="background:rgba(208,135,112,.12);color:var(--accent);">X-500</span><span class="msg-row-title">Low O2 Filter Stock</span><span class="msg-row-pri">HIGH</span></div>
+              <div class="msg-row-body">Crew reports O2 filter units below minimum threshold (2 remaining). Urgent resupply requested.</div>
+              <div class="msg-row-foot"><span>Crew — ISS</span><span>Apr 26, 08:52</span></div>
+            </div>
+            <div class="msg-row">
+              <div class="msg-row-top"><span class="ch-pill" style="background:rgba(136,192,208,.12);color:var(--blue);">X-400</span><span class="msg-row-title">CTB Pack Complete</span></div>
+              <div class="msg-row-body">CTB-007 packed with 8 items and sealed. Ready for launch manifest inclusion.</div>
+              <div class="msg-row-foot"><span>Ground Control</span><span>Apr 26, 08:30</span></div>
+            </div>
+            <div class="msg-row">
+              <div class="msg-row-top"><span class="ch-pill" style="background:rgba(208,135,112,.12);color:var(--accent);">X-500</span><span class="msg-row-title">Item Disposed — W-09</span></div>
+              <div class="msg-row-body">Waste container W-09 disposed by crew. Container removed from active tracking.</div>
+              <div class="msg-row-foot"><span>Crew — ISS</span><span>Apr 26, 07:55</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ════════════════════ CREW ════════════════════ -->
+<div class="screen" id="screen-crew">
+  <header class="topbar">
+    <div class="tb-logomark" style="background:linear-gradient(145deg,rgba(136,192,208,.9),rgba(94,129,172,.5));box-shadow:0 0 0 1px rgba(136,192,208,.25),0 2px 10px rgba(136,192,208,.15);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" fill="rgba(0,0,0,.65)"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="rgba(0,0,0,.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+    <div><div class="tb-name">DSLM <span style="color:var(--subtle);font-weight:500;font-size:.76rem;">Crew</span></div><div class="tb-sub">ISS Terminal</div></div>
+    <div class="tb-mission" style="background:rgba(136,192,208,.08);border:1px solid rgba(136,192,208,.2);color:var(--blue);">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--blue);animation:pulse 2.5s infinite;"></div>
+      Expedition 72 · Day 112
+    </div>
+    <div class="tb-right">
+      <div class="tb-sync" style="background:rgba(136,192,208,.06);border:1px solid rgba(136,192,208,.14);">
+        <div class="tb-sync-dot" style="background:var(--blue);animation:pulse 2s infinite;"></div>
+        <span class="tb-sync-label" style="color:var(--blue);">Connected</span>
+      </div>
+      <button class="tb-btn">☀</button>
+      <button class="tb-logout">Exit</button>
+    </div>
+  </header>
+
+  <div class="body-layout" style="flex:1;min-height:0;">
+    <nav class="sidebar">
+      <div class="user-card" style="background:rgba(136,192,208,.06);border:1px solid rgba(136,192,208,.12);">
+        <div class="user-avatar" style="background:linear-gradient(145deg,rgba(136,192,208,.7),rgba(94,129,172,.5));">🧑‍🚀</div>
+        <div><div class="user-name">Crew Member</div><div class="user-role" style="color:var(--blue);">ISS Astronaut</div></div>
+      </div>
+
+      <div class="sec-label">Operations</div>
+      <button class="nav-btn active" style="background:rgba(136,192,208,.12);">
+        <span class="nav-icon" style="background:rgba(136,192,208,.18);"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 11l3 3L22 4" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Take Out Item
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M19 21H5a2 2 0 01-2-2V7a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" stroke="var(--muted)" stroke-width="2" stroke-linejoin="round"/></svg></span>Put Back
+      </button>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="var(--muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Dispose
+      </button>
+
+      <div class="sec-label">Requests</div>
+      <button class="nav-btn">
+        <span class="nav-icon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--muted)" stroke-width="2"/><path d="M12 8v4l3 3" stroke="var(--muted)" stroke-width="2" stroke-linecap="round"/></svg></span>
+        Low Resources<span class="nav-badge" style="background:rgba(191,97,106,.15);color:var(--red);">!</span>
+      </button>
+
+      <div class="sidebar-footer" style="background:rgba(191,97,106,.07);border:1px solid rgba(191,97,106,.18);">
+        <div class="sf-label">O2 Filter Status</div>
+        <div class="sf-phase" style="color:var(--red);">⚠ Critical Low</div>
+        <div class="sf-detail">2 units remaining</div>
+      </div>
+    </nav>
+
+    <main style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2rem;gap:1.1rem;overflow-y:auto;background:var(--bg);">
+      <div class="scan-zone">
+        <div class="scan-ring">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none"><path d="M20 13l-7 7-9-9V4h7l9 9Z" stroke="var(--blue)" stroke-width="1.5" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5" fill="var(--blue)"/></svg>
+        </div>
+        <div class="scan-title">Scan Item RFID Tag</div>
+        <div class="scan-hint">Hold tag near the reader or enter the UID manually to check out an item from the module.</div>
+        <input class="scan-input" placeholder="Tag UID…">
+        <div style="margin-top:.45rem;height:2px;background:rgba(136,192,208,.07);border-radius:2px;overflow:hidden;"><div style="height:100%;width:32%;background:linear-gradient(90deg,transparent,rgba(136,192,208,.7),transparent);animation:sweep 2.4s ease-in-out infinite;"></div></div>
+      </div>
+
+      <div style="width:100%;max-width:460px;">
+        <div class="recent-label">Recently Accessed</div>
+        <div class="recent-row">
+          <div style="width:7px;height:7px;border-radius:50%;background:var(--green);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:.8rem;font-weight:600;color:var(--text);">Medical Kit Alpha-3</div><div style="font-size:.6rem;color:var(--subtle);">Taken out · RACK-C2 L4 · 2h ago</div></div>
+          <div style="font-size:.62rem;padding:.1rem .38rem;border-radius:4px;background:rgba(163,190,140,.1);color:var(--green);font-weight:600;">Out</div>
+        </div>
+        <div class="recent-row">
+          <div style="width:7px;height:7px;border-radius:50%;background:var(--blue);flex-shrink:0;"></div>
+          <div style="flex:1;"><div style="font-size:.8rem;font-weight:600;color:var(--text);">EVA Gloves (Pair)</div><div style="font-size:.6rem;color:var(--subtle);">Returned · STACK-S1 L8 · Yesterday</div></div>
+          <div style="font-size:.62rem;padding:.1rem .38rem;border-radius:4px;background:rgba(136,192,208,.1);color:var(--blue);font-weight:600;">Stowed</div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- ════════════════════ VENDOR ════════════════════ -->
+<div class="screen" id="screen-vendor">
+  <header class="topbar">
+    <div class="tb-logomark" style="background:linear-gradient(145deg,rgba(208,135,112,.9),rgba(191,97,106,.5));box-shadow:0 0 0 1px rgba(208,135,112,.25),0 2px 10px rgba(208,135,112,.15);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" fill="rgba(0,0,0,.65)"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="rgba(0,0,0,.4)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </div>
+    <div><div class="tb-name">DSLM <span style="color:var(--subtle);font-weight:500;font-size:.76rem;">Vendor</span></div><div class="tb-sub">Supplier Portal</div></div>
+    <div class="tb-right">
+      <div class="tb-sync" style="background:rgba(208,135,112,.07);border:1px solid rgba(208,135,112,.18);">
+        <div class="tb-sync-dot" style="background:var(--accent);animation:pulse 2s infinite;"></div>
+        <span class="tb-sync-label" style="color:var(--accent);">3 new orders</span>
+      </div>
+      <button class="tb-btn">☀</button>
+      <button class="tb-logout">Logout</button>
+    </div>
+  </header>
+
+  <div style="display:flex;flex-direction:column;flex:1;min-height:0;">
+    <div class="v-tabs">
+      <button class="v-tab active" onclick="vtab(this)">My Orders</button>
+      <button class="v-tab" onclick="vtab(this)">Shipments</button>
+      <button class="v-tab" onclick="vtab(this)">Invoices</button>
+      <button class="v-tab" onclick="vtab(this)">Packing Rules</button>
+    </div>
+
+    <div class="v-content">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+        <div><div class="pg-title" style="font-size:1.1rem;">Purchase Orders</div><div class="pg-desc" style="font-size:.72rem;">Fulfill orders and mark items picked before shipping</div></div>
+        <button class="btn-primary" style="background:var(--accent);color:#fff;">Mark All Picked</button>
+      </div>
+
+      <div class="order-card">
+        <div class="order-head">
+          <span class="order-po">PO-2026-041</span>
+          <span class="order-desc">Medical Supplies Refill</span>
+          <span style="font-size:.63rem;color:var(--muted);">Due Apr 30</span>
+          <span style="font-size:.63rem;font-weight:700;padding:.18rem .5rem;border-radius:999px;background:rgba(208,135,112,.12);color:var(--accent);">open</span>
+        </div>
+        <div class="order-chips"><span class="chip">Medical Gauze × 24</span><span class="chip">Antiseptic × 12</span><span class="chip">Bandages × 50</span><span class="chip">Syringes × 20</span></div>
+        <div class="order-actions"><button class="act-btn act-ghost">View Details</button><button class="act-btn" style="background:var(--blue3);color:#fff;">Start Picking</button></div>
+      </div>
+
+      <div class="order-card" style="border-color:rgba(191,97,106,.18);">
+        <div class="order-head">
+          <span class="order-po">PO-2026-040</span>
+          <span class="order-desc">O2 Filter Urgent Resupply</span>
+          <span style="font-size:.63rem;color:var(--red);font-weight:600;">Due ASAP</span>
+          <span style="font-size:.63rem;font-weight:700;padding:.18rem .5rem;border-radius:999px;background:rgba(191,97,106,.12);color:var(--red);">urgent</span>
+        </div>
+        <div class="order-chips"><span class="chip chip-r">O2 Filter Units × 8</span></div>
+        <div class="order-actions"><button class="act-btn act-ghost">View Details</button><button class="act-btn" style="background:var(--green);color:rgba(0,0,0,.72);">Pick &amp; Ship Now</button></div>
+      </div>
+
+      <div class="order-card">
+        <div class="order-head">
+          <span class="order-po">PO-2026-039</span>
+          <span class="order-desc">Food &amp; Rations Resupply</span>
+          <span style="font-size:.63rem;color:var(--muted);">Due May 5</span>
+          <span style="font-size:.63rem;font-weight:700;padding:.18rem .5rem;border-radius:999px;background:rgba(136,192,208,.12);color:var(--blue);">picking</span>
+        </div>
+        <div class="order-chips"><span class="chip">Ration Pack A × 30</span><span class="chip">Ration Pack B × 20</span><span class="chip">Drink Pouches × 60</span><span class="chip">Snack Bars × 100</span></div>
+        <div class="order-actions"><button class="act-btn act-ghost">View Details</button><button class="act-btn" style="background:var(--blue3);color:#fff;">Continue Picking</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function show(name, tab) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.ptab').forEach(t => t.classList.remove('active'));
+    document.getElementById('screen-' + name).classList.add('active');
+    tab.classList.add('active');
+  }
+  function vtab(tab) {
+    document.querySelectorAll('.v-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  }
+
+  // Star field
+  const cv = document.getElementById('stars-canvas');
+  const cx = cv.getContext('2d');
+  let stars = [], frame = 0;
+  function resize() { cv.width = innerWidth; cv.height = innerHeight; initStars(); }
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 200; i++) {
+      stars.push({ x: Math.random()*cv.width, y: Math.random()*cv.height,
+        r: Math.random()*1.1+.2, a: Math.random()*.65+.1,
+        ts: Math.random()*.012+.004, to: Math.random()*Math.PI*2 });
+    }
+  }
+  function draw() {
+    cx.clearRect(0,0,cv.width,cv.height); frame++;
+    stars.forEach(s => {
+      const a = s.a*(0.55+0.45*Math.sin(frame*s.ts+s.to));
+      cx.beginPath(); cx.arc(s.x,s.y,s.r,0,Math.PI*2);
+      cx.fillStyle=`rgba(223,230,239,${a})`; cx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  resize(); draw();
+  window.addEventListener('resize', resize);
+
+  // UTC clock
+  function tick() {
+    const n = new Date();
+    const t = [n.getUTCHours(),n.getUTCMinutes(),n.getUTCSeconds()].map(v=>String(v).padStart(2,'0')).join(':');
+    const el = document.getElementById('utc-clock');
+    if (el) el.textContent = t + ' UTC';
+  }
+  tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>

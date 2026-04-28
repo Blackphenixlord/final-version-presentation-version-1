@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@serialport/parser-readline": "^13.0.0",
+    "serialport": "^13.0.0"
+  },
+  "scripts": {
+    "dev:server": "node ./dlsm-inv-sys-client-main/dev-server/server.mjs",
+    "dev": "node ./dlsm-inv-sys-client-main/dev-server/server.mjs"
+  }
+}

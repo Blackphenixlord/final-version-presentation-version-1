@@ -1,0 +1,36 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Unbind Tag",
+    "description": "Remove an association between a tag and an Item/Container or Zone (mutually exclusive).",
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "tagKind": { "$ref": "../defs/common.json#/$defs/TagKind" },
+      "tagUid":  { "$ref": "../defs/common.json#/$defs/tagUid" },
+      "reason":  { "type": "string", "minLength": 1, "maxLength": 200 },
+      "objectType": { "$ref": "../defs/common.json#/$defs/ObjectType" },
+      "objectId":   { "$ref": "../defs/common.json#/$defs/uuidV7" },
+      "zoneId":     { "$ref": "../defs/common.json#/$defs/uuidV7" }
+    },
+    "required": ["tagKind", "tagUid"],
+    "oneOf": [
+      {
+        "type": "object",
+        "properties": {
+          "objectType": { "$ref": "../defs/common.json#/$defs/ObjectType" },
+          "objectId":   { "$ref": "../defs/common.json#/$defs/uuidV7" }
+        },
+        "required": ["objectType", "objectId"]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "zoneId": { "$ref": "../defs/common.json#/$defs/uuidV7" }
+        },
+        "required": ["zoneId"]
+      }
+    ],
+    "examples": [
+      { "tagKind": "NFC_HF", "tagUid": "04A1B2C3D4E5F6", "objectType": "CONTAINER", "objectId": "018f1b3c-9c8a-7a1b-b2c3-4d5e6f7080bb", "reason": "relabeling" }
+    ]
+  }
