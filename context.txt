@@ -1,5 +1,5 @@
 NASA HUNCH / DSLM — Project Context
-Last updated: 2026-04-26
+Last updated: 2026-04-28
 ================================================================================
 
 PROJECT OVERVIEW
@@ -16,19 +16,34 @@ REPO STRUCTURE
                                   Fastify Node.js API server (port 8080)
   .github/workflows/              CI/CD pipeline (GitHub Actions)
 
+GITHUB REPO
+-----------
+  https://github.com/Blackphenixlord/final-version-presentation-version-1
+  Branch: main  (293 files, commit ada2067)
+
 QUICK START
 -----------
   Terminal 1 — Backend (in-memory, no DB needed):
     cd dlsm-temp/dlsm-inv-sys-client-main/services/edge-server
-    NO_DB=1 node src/server.mjs
+    $env:NO_DB="1"; $env:SERVE_STATIC="1"; node src/server.mjs
 
-  Terminal 2 — Frontend:
+  Terminal 2 — Frontend (dev):
     cd nasa-hunch
     npm install
     npm run dev
 
-  Open http://localhost:5173
+  Open http://localhost:5173 (dev) or http://localhost:8080 (static build)
   Test badges: crew=0003070837  ground=0003104127  vendor=0003200001
+
+  Windows EXE (portable):
+    Extract nasa-hunch/dist-electron/DSLM-NASA-HUNCH-win-x64.zip
+    Run "DSLM NASA HUNCH.exe" — backend starts automatically.
+
+  Android APK (debug):
+    nasa-hunch/android/app/build/outputs/apk/debug/app-debug.apk
+    Points to http://192.168.1.45:8080 (edit capacitor.config.ts for other IPs).
+    Rebuild:  cd nasa-hunch && npm run build && npx cap sync android
+              cd android && .\gradlew assembleDebug
 
 ROLES & VIEWS
 -------------
@@ -224,7 +239,12 @@ BACKEND IN-MEMORY SEED DATA (NO_DB=1)
 --------------------------------------
   Badges:  0003070837 → crew, 0003104127 → ground, 0003200001 → vendor
   Grid:    3 shelves × 4 depths × 12 levels = 144 stow slots
-  Items:   ~30 seeded items (medical, food, tools, hygiene, maintenance)
+  Items:   ~30 seeded inventory items (medical, food, tools, hygiene, maintenance)
+  RFID:    288 pre-seeded RFID items (188 Cards + 100 Fobs)
+           Added in server.mjs after createMemoryStore() unit loop.
+           SEED_CARDS and SEED_FOBS arrays → seedRfidItem() populates
+           units + identifiers maps with status="NEEDS_VERIFY".
+           All 288 appear in the Tag screen as "needs-verify" on server start.
   No persistence — all state resets on server restart. Use PostgreSQL for
   persistence (set DATABASE_URL in .env and remove NO_DB=1).
 
@@ -235,7 +255,50 @@ ENVIRONMENT VARIABLES
   CORS_ORIGINS     Comma-separated allowed origins (default: "*")
   PORT             Server port (default: 8080)
 
-KNOWN LIMITATIONS
+RESPONSIVE / MULTI-DEVICE CSS (added 2026-04-28)
+--------------------------------------------------
+  File: nasa-hunch/src/index.css  (large block appended after existing breakpoints)
+  File: nasa-hunch/src/App.css    (Vite boilerplate replaced — layout lives in index.css)
+
+  Covered devices:
+    - Phones ≤640px:   sidebar collapses to horizontal bottom nav (order:2, width:100%)
+    - iPads 768–1180px: sidebar 200px wide
+    - Landscape phone ≤500px height: topbar hidden
+    - HiDPI / Retina: stronger .glass blur
+    - Print: sidebar/topbar hidden, white background
+
+  Key rules added:
+    --safe-top/bottom/left/right  using env(safe-area-inset-*)
+    -webkit-text-size-adjust: 100% on html (iOS font bump prevention)
+    -webkit-tap-highlight-color: transparent on html
+    overflow-x: hidden on body, #root
+    min-height/width 44px on all interactive elements (touch targets)
+    font-size: max(16px, 1em) on inputs (prevents iOS auto-zoom)
+
+ELECTRON / WINDOWS EXE (added 2026-04-28)
+-------------------------------------------
+  Entry:   nasa-hunch/electron/main.cjs  (.cjs because package.json has "type":"module")
+  Config:  nasa-hunch/package.json  (main, electron/build:win scripts, build config)
+  Output:  nasa-hunch/dist-electron/win-unpacked/DSLM NASA HUNCH.exe  (223 MB)
+  Zip:     nasa-hunch/dist-electron/DSLM-NASA-HUNCH-win-x64.zip  (177 MB)
+
+  How it works:
+    1. npm run build:win  →  npm run build + electron-builder --win --x64
+    2. main.cjs spawns the Fastify backend (node server.mjs, NO_DB=1)
+    3. After 800ms delay, opens BrowserWindow loading dist/index.html
+    4. Backend embedded via extraResources in electron-builder config
+
+  Note: NSIS installer requires Windows Developer Mode (symlink privilege).
+        Use zip/dir targets (already configured) to avoid this requirement.
+
+ANDROID / CAPACITOR APK (added 2026-04-28)
+--------------------------------------------
+  Config:   nasa-hunch/capacitor.config.ts
+            server.url = 'http://192.168.1.45:8080'  (update for other IPs)
+  APK:      nasa-hunch/android/app/build/outputs/apk/debug/app-debug.apk
+  Rebuild:  npm run build → npx cap sync android → cd android → .\gradlew assembleDebug
+
+
 -----------------
   - In-memory backend does not persist between restarts without PostgreSQL.
   - No real RFID hardware integration tested yet (keyboard-wedge simulation only).
@@ -251,16 +314,20 @@ NEXT STEPS (prioritised)
   5. [done] 3D Module real DSLM geometry (S-1/S-2/S-3/C1/C2/S-4, translation pathway)
   6. [done] Click-to-stow and double-click container tree in 3D Module
   7. [done] Stow tab removed from GroundView — 3D Module replaces it
-  8. Real RFID hardware test — connect USB reader to Jetson/Pi, verify
+  8. [done] Responsive CSS for all devices (phones, iPads, tablets, laptops, HiDPI, print)
+  9. [done] Android APK built (Capacitor v7, app-debug.apk)
+ 10. [done] Windows EXE packaged (Electron v41 + electron-builder, zip/dir targets)
+ 11. [done] 288 RFID items seeded (188 Cards + 100 Fobs) in server.mjs
+ 12. [done] GitHub repo created: https://github.com/Blackphenixlord/final-version-presentation-version-1
+ 13. Real RFID hardware test — connect USB reader to Jetson/Pi, verify
      /dev/ttyUSB0 path, test tag reads against live server.
-  9. Rate limiting — add fastify-rate-limit to POST/PATCH mutation routes.
- 10. Swagger UI endpoint — serve /docs with @fastify/swagger + @fastify/swagger-ui.
- 11. PostgreSQL migration — swap NO_DB=1 for a real DB, run db/ migrations.
- 12. Tailscale deployment — follow LINUX_SETUP_AND_CONNECT.md for Jetson/Pi.
-     NOTE: Tailscale on dev machine currently stuck in NoState (not connected).
- 13. Make C1, C2, S-4 interactive in 3D Module (needs server endpoints).
- 14. Live sync — real-time updates across roles (currently both poll /api/stow/locations every 4 s).
- 15. Demo video / brochure export — TrifoldBrochureScreen.tsx exports a PDF.
+ 14. Rate limiting — add fastify-rate-limit to POST/PATCH mutation routes.
+ 15. Swagger UI endpoint — serve /docs with @fastify/swagger + @fastify/swagger-ui.
+ 16. PostgreSQL migration — swap NO_DB=1 for a real DB, run db/ migrations.
+ 17. Tailscale deployment — follow LINUX_SETUP_AND_CONNECT.md for Jetson/Pi.
+ 18. Make C1, C2, S-4 interactive in 3D Module (needs server endpoints).
+ 19. Live sync — real-time updates across roles (currently both poll /api/stow/locations every 4 s).
+ 20. Demo video / brochure export — TrifoldBrochureScreen.tsx exports a PDF.
 
 DEMO SCRIPT (3-minute pitch)
 -----------------------------
