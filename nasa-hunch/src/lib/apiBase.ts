@@ -1,5 +1,5 @@
 const ENV_API_BASE = import.meta.env.VITE_API_BASE as string | undefined;
-const DEFAULT_BASE = "/api";
+const DEFAULT_BASE = "http://desktop-66cuacm.tail0de5a5.ts.net:8080/api";
 const STORAGE_KEY = "dslm_api_base";
 
 function readStored(): string | null {

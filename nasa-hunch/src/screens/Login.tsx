@@ -204,9 +204,12 @@ export default function Login() {
 
   const BADGE_FALLBACK: Record<string, BadgeConfig> = useMemo(
     () => ({
-      "0003070837": { actor: "crew", uiMode: "crew" },
-      "0003104127": { actor: "ground", uiMode: "ground" },
-      "0003063286": { actor: "vendor", uiMode: "vendor" },
+      "0004747984": { actor: "crew", uiMode: "crew" },
+      "0004623794": { actor: "crew", uiMode: "crew" },
+      "0004720389": { actor: "ground", uiMode: "ground" },
+      "0004758755": { actor: "ground", uiMode: "ground" },
+      "0004650556": { actor: "vendor", uiMode: "vendor" },
+      "0004411969": { actor: "vendor", uiMode: "vendor" },
     }),
     []
   );
@@ -322,12 +325,6 @@ export default function Login() {
   const isUnknownBadge = err.startsWith("Unknown badge:");
   const showRegister = Boolean(err) && !isUnknownBadge;
 
-  const badges: { id: string; label: string; color: string }[] = [
-    { id: "0003070837", label: "Crew", color: "var(--t-blue)" },
-    { id: "0003104127", label: "Ground", color: "var(--t-green)" },
-    { id: "0003063286", label: "Vendor", color: "var(--t-accent)" },
-  ];
-
   return (
     <>
       <style>{css}</style>
@@ -357,7 +354,7 @@ export default function Login() {
             <div>
               <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--t-text)", letterSpacing: "-0.02em", lineHeight: 1.1 }}>DSLM</div>
               <div style={{ fontSize: "0.64rem", color: "var(--t-subtle)", fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-                Dynamic Stowage & Logistics Manager
+                Deep Space Logistics Module
               </div>
             </div>
           </div>
@@ -426,24 +423,6 @@ export default function Login() {
             </div>
           )}
           </div>
-
-          {/* ── Test Badge IDs ── */}
-          <div style={{
-            marginTop: "1.5rem", padding: "0.85rem", borderRadius: "0.75rem",
-            background: "rgba(var(--t-surface2-rgb), 0.45)",
-            border: "1px solid rgba(var(--t-border-rgb), 0.06)",
-          }}>
-            <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--t-subtle)", textTransform: "uppercase", letterSpacing: "0.09em", marginBottom: "0.55rem" }}>
-              Test Badge IDs
-            </div>
-            {badges.map((b) => (
-              <button key={b.id} className="l-badge" onClick={() => { setTyped(b.id); applyBadge(b.id); }}>
-                <span style={{ fontFamily: "'SF Mono','Fira Code',ui-monospace,monospace", fontSize: "0.8rem", color: "var(--t-text)", letterSpacing: "0.08em" }}>{b.id}</span>
-                <span style={{ fontSize: "0.65rem", fontWeight: 600, color: b.color, padding: "0.12rem 0.45rem", borderRadius: "999px", background: "rgba(var(--t-border-rgb), 0.07)" }}>{b.label}</span>
-              </button>
-            ))}
-          </div>
-
           {/* ── Footer ── */}
           <div style={{ marginTop: "1.25rem", textAlign: "center", fontSize: "0.62rem", color: "var(--t-subtle)", letterSpacing: "0.04em", display: "flex", alignItems: "center", justifyContent: "center", gap: "0.65rem" }}>
             <span>NASA HUNCH</span>
@@ -489,7 +468,7 @@ export default function Login() {
                   {connStatus === "testing" ? "Testing\u2026" : "Test & Save"}
                 </button>
                 <button className="l-reg" style={{ flex: 0, padding: "0.45rem 0.75rem", fontSize: "0.75rem", opacity: 0.7 }}
-                  onClick={() => { clearApiBase(); setConnUrl("/api"); setConnStatus("idle"); }}
+                  onClick={() => { clearApiBase(); setConnUrl(getApiBase()); setConnStatus("idle"); }}
                 >
                   Reset
                 </button>

@@ -5,6 +5,6 @@ $frontendPath = Join-Path $repoRoot "nasa-hunch"
 Set-Location $frontendPath
 
 Write-Host "Starting frontend (Vite dev server)..."
-Write-Host "URL: http://localhost:5173/"
+Write-Host "URL: http://localhost:5174/"
 
-npm run dev
+npm run dev -- --port 5174 --strictPort
